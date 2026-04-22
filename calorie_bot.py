@@ -9,7 +9,7 @@ import io
 
 # --- НАСТРОЙКА ---
 TELEGRAM_TOKEN = "8782272205:AAHoB4B6oHFa996lqDtRt5Lgt2Fm_ByAcsM"
-GEMINI_API_KEY = "AIzaSyDHeZXF5-RUDwjqGpvu561K6jYFy1MIE24"
+GEMINI_API_KEY = "AIzaSyDHeZXF5-RUDwjqGpvu561K6jYFy1MlE24"
 
 # Файл для хранения ID пользователей
 USER_FILE = "users.json"
