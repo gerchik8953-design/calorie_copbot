@@ -16,7 +16,7 @@ USER_FILE = "users.json"
 
 # Настройка Gemini
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('models/gemini-1.5-flash')
+model = genai.GenerativeModel('gemini-pro')
 
 # Логирование
 logging.basicConfig(level=logging.INFO)
