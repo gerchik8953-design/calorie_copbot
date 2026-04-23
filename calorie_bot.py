@@ -1,25 +1,55 @@
 import os
 import json
 import logging
+import requests
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
-import google.generativeai as genai
 from PIL import Image
 import io
 
 # --- НАСТРОЙКА ---
 TELEGRAM_TOKEN = "8782272205:AAHoB4B6oHFa996lqDtRt5Lgt2Fm_ByAcsM"
-GEMINI_API_KEY = "AIzaSyDHeZXF5-RUDwjqGpvu561K6jYFy1MlE24"
+GEMINI_API_KEY = "AIzaSyDHeZXF5-RUDwjqGpvu561K6jYFy1MlE24"  # ВСТАВЬТЕ СВОЙ КЛЮЧ
 
-# Файл для хранения ID пользователей
 USER_FILE = "users.json"
-
-# Настройка Gemini
-genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-pro')
-
-# Логирование
 logging.basicConfig(level=logging.INFO)
+
+# --- ФУНКЦИЯ ЗАПРОСА К GEMINI ЧЕРЕЗ REST API ---
+def ask_gemini(prompt, image_bytes):
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+    
+    # Кодируем изображение в base64
+    import base64
+    image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+    
+    payload = {
+        "contents": [
+            {
+                "parts": [
+                    {"text": prompt},
+                    {
+                        "inline_data": {
+                            "mime_type": "image/jpeg",
+                            "data": image_base64
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+    
+    headers = {"Content-Type": "application/json"}
+    response = requests.post(url, json=payload, headers=headers)
+    
+    if response.status_code != 200:
+        logging.error(f"Gemini API error: {response.status_code} - {response.text}")
+        return "❌ Ошибка при анализе фото. Попробуйте ещё раз."
+    
+    data = response.json()
+    try:
+        return data["candidates"][0]["content"]["parts"][0]["text"]
+    except (KeyError, IndexError):
+        return "❌ Не удалось распознать блюдо. Попробуйте другое фото."
 
 # --- СЧЁТЧИК ПОЛЬЗОВАТЕЛЕЙ ---
 def load_users():
@@ -63,7 +93,6 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     photo_file = await update.message.photo[-1].get_file()
     photo_bytes = await photo_file.download_as_bytearray()
-    image = Image.open(io.BytesIO(photo_bytes))
     
     prompt = (
         "Ты — диетолог. На фото — блюдо. Рядом с ним лежит вилка — используй её для оценки размера порции. "
@@ -77,8 +106,8 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "💡 Совет: [один короткий совет]"
     )
     
-    response = model.generate_content([prompt, image])
-    await update.message.reply_text(response.text)
+    response_text = ask_gemini(prompt, photo_bytes)
+    await update.message.reply_text(response_text)
 
 # --- ЗАПУСК ---
 def main():
