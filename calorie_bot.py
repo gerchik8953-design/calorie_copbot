@@ -1,55 +1,25 @@
 import os
 import json
 import logging
-import requests
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+from mistralai import Mistral
 from PIL import Image
 import io
+import base64
 
 # --- НАСТРОЙКА ---
 TELEGRAM_TOKEN = "8782272205:AAHoB4B6oHFa996lqDtRt5Lgt2Fm_ByAcsM"
-GEMINI_API_KEY = "AIzaSyA2o_cqHOQ3rXskH1WE_iTLs6nbpqPze8Q"  # ВСТАВЬТЕ СВОЙ КЛЮЧ
+MISTRAL_API_KEY = "pjWEoYsJgGKwyga1mp2Hb0UKBjT4ZXLs"  # ← ВСТАВЬТЕ СВОЙ КЛЮЧ
 
+# Файл для хранения ID пользователей
 USER_FILE = "users.json"
-logging.basicConfig(level=logging.INFO)
 
-# --- ФУНКЦИЯ ЗАПРОСА К GEMINI ЧЕРЕЗ REST API ---
-def ask_gemini(prompt, image_bytes):
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key={GEMINI_API_KEY}"
-    
-    # Кодируем изображение в base64
-    import base64
-    image_base64 = base64.b64encode(image_bytes).decode('utf-8')
-    
-    payload = {
-        "contents": [
-            {
-                "parts": [
-                    {"text": prompt},
-                    {
-                        "inline_data": {
-                            "mime_type": "image/jpeg",
-                            "data": image_base64
-                        }
-                    }
-                ]
-            }
-        ]
-    }
-    
-    headers = {"Content-Type": "application/json"}
-    response = requests.post(url, json=payload, headers=headers)
-    
-    if response.status_code != 200:
-        logging.error(f"Gemini API error: {response.status_code} - {response.text}")
-        return "❌ Ошибка при анализе фото. Попробуйте ещё раз."
-    
-    data = response.json()
-    try:
-        return data["candidates"][0]["content"]["parts"][0]["text"]
-    except (KeyError, IndexError):
-        return "❌ Не удалось распознать блюдо. Попробуйте другое фото."
+# Настройка Mistral
+client = Mistral(api_key=MISTRAL_API_KEY)
+
+# Логирование
+logging.basicConfig(level=logging.INFO)
 
 # --- СЧЁТЧИК ПОЛЬЗОВАТЕЛЕЙ ---
 def load_users():
@@ -68,12 +38,36 @@ def add_user(user_id):
         users.append(user_id)
         save_users(users)
 
+# --- ФУНКЦИЯ ЗАПРОСА К MISTRAL (С АНАЛИЗОМ ИЗОБРАЖЕНИЯ) ---
+def ask_mistral(prompt, image_bytes):
+    # Кодируем изображение в base64
+    image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+    
+    # Отправляем запрос к Mistral (модель Pixtral 12B для работы с изображениями)
+    response = client.chat.complete(
+        model="pixtral-12b-2409",  # ← модель Mistral для работы с изображениями
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {
+                        "type": "image_url",
+                        "image_url": f"data:image/jpeg;base64,{image_base64}"
+                    }
+                ]
+            }
+        ]
+    )
+    
+    return response.choices[0].message.content
+
 # --- ОБРАБОТЧИКИ ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     add_user(user_id)
     await update.message.reply_text(
-        "👋 Привет! Я **Calorie Copbot** — бот-диетолог.\n"
+        "👋 Привет! Я **Calorie Copbot** — бот-диетолог (на Mistral AI).\n"
         "Отправь мне фото еды, и я посчитаю калории и БЖУ.\n\n"
         "📌 *Важно:* положи рядом с блюдом **вилку** — так мне проще понять масштаб.\n\n"
         "Команда /stats — сколько людей пользуются ботом.",
@@ -106,7 +100,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "💡 Совет: [один короткий совет]"
     )
     
-    response_text = ask_gemini(prompt, photo_bytes)
+    response_text = ask_mistral(prompt, photo_bytes)
     await update.message.reply_text(response_text)
 
 # --- ЗАПУСК ---
@@ -116,7 +110,7 @@ def main():
     app.add_handler(CommandHandler("stats", stats))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     
-    print("✅ Бот Calorie Copbot запущен и работает 24/7")
+    print("✅ Бот Calorie Copbot (Mistral AI) запущен и работает 24/7")
     app.run_polling()
 
 if __name__ == "__main__":
