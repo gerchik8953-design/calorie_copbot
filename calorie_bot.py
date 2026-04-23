@@ -1,9 +1,9 @@
 import os
 import json
 import logging
+import requests
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
-from mistralai import Mistral
 from PIL import Image
 import io
 import base64
@@ -12,14 +12,47 @@ import base64
 TELEGRAM_TOKEN = "8782272205:AAHoB4B6oHFa996lqDtRt5Lgt2Fm_ByAcsM"
 MISTRAL_API_KEY = "pjWEoYsJgGKwyga1mp2Hb0UKBjT4ZXLs"  # ← ВСТАВЬТЕ СВОЙ КЛЮЧ
 
-# Файл для хранения ID пользователей
 USER_FILE = "users.json"
-
-# Настройка Mistral
-client = Mistral(api_key=MISTRAL_API_KEY)
-
-# Логирование
 logging.basicConfig(level=logging.INFO)
+
+# --- ФУНКЦИЯ ЗАПРОСА К MISTRAL ЧЕРЕЗ REST API ---
+def ask_mistral(prompt, image_bytes):
+    url = "https://api.mistral.ai/v1/chat/completions"
+    
+    image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+    
+    payload = {
+        "model": "pixtral-12b-2409",
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {
+                        "type": "image_url",
+                        "image_url": f"data:image/jpeg;base64,{image_base64}"
+                    }
+                ]
+            }
+        ]
+    }
+    
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {MISTRAL_API_KEY}"
+    }
+    
+    response = requests.post(url, json=payload, headers=headers)
+    
+    if response.status_code != 200:
+        logging.error(f"Mistral API error: {response.status_code} - {response.text}")
+        return "❌ Ошибка при анализе фото. Попробуйте ещё раз."
+    
+    data = response.json()
+    try:
+        return data["choices"][0]["message"]["content"]
+    except (KeyError, IndexError):
+        return "❌ Не удалось распознать блюдо. Попробуйте другое фото."
 
 # --- СЧЁТЧИК ПОЛЬЗОВАТЕЛЕЙ ---
 def load_users():
@@ -37,30 +70,6 @@ def add_user(user_id):
     if user_id not in users:
         users.append(user_id)
         save_users(users)
-
-# --- ФУНКЦИЯ ЗАПРОСА К MISTRAL (С АНАЛИЗОМ ИЗОБРАЖЕНИЯ) ---
-def ask_mistral(prompt, image_bytes):
-    # Кодируем изображение в base64
-    image_base64 = base64.b64encode(image_bytes).decode('utf-8')
-    
-    # Отправляем запрос к Mistral (модель Pixtral 12B для работы с изображениями)
-    response = client.chat.complete(
-        model="pixtral-12b-2409",  # ← модель Mistral для работы с изображениями
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": prompt},
-                    {
-                        "type": "image_url",
-                        "image_url": f"data:image/jpeg;base64,{image_base64}"
-                    }
-                ]
-            }
-        ]
-    )
-    
-    return response.choices[0].message.content
 
 # --- ОБРАБОТЧИКИ ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
