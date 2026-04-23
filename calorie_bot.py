@@ -9,7 +9,7 @@ import io
 
 # --- НАСТРОЙКА ---
 TELEGRAM_TOKEN = "8782272205:AAHoB4B6oHFa996lqDtRt5Lgt2Fm_ByAcsM"
-GEMINI_API_KEY = "AIzaSyDHeZXF5-RUDwjqGpvu561K6jYFy1MlE24"  # ВСТАВЬТЕ СВОЙ КЛЮЧ
+GEMINI_API_KEY = "AIzaSyA2o_cqHOQ3rXskH1WE_iTLs6nbpqPze8Q"  # ВСТАВЬТЕ СВОЙ КЛЮЧ
 
 USER_FILE = "users.json"
 logging.basicConfig(level=logging.INFO)
