@@ -2,6 +2,8 @@ import os
 import json
 import logging
 import requests
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from PIL import Image
@@ -10,12 +12,23 @@ import base64
 
 # --- НАСТРОЙКА ---
 TELEGRAM_TOKEN = "8782272205:AAHoB4B6oHFa996lqDtRt5Lgt2Fm_ByAcsM"
-MISTRAL_API_KEY = "pjWEoYsJgGKwyga1mp2Hb0UKBjT4ZXLs"  # ← ВСТАВЬТЕ СВОЙ КЛЮЧ
+MISTRAL_API_KEY = "pjWEoYsJgGKwyga1mp2Hb0UKBjT4ZXLs"
 
 USER_FILE = "users.json"
 logging.basicConfig(level=logging.INFO)
 
-# --- ФУНКЦИЯ ЗАПРОСА К MISTRAL ЧЕРЕЗ REST API ---
+# --- HEALTH-СЕРВЕР ДЛЯ RENDER ---
+class HealthCheckHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b'OK')
+
+def run_health_server():
+    server = HTTPServer(('0.0.0.0', 10000), HealthCheckHandler)
+    server.serve_forever()
+
+# --- ФУНКЦИЯ ЗАПРОСА К MISTRAL ---
 def ask_mistral(prompt, image_bytes):
     url = "https://api.mistral.ai/v1/chat/completions"
     
@@ -123,4 +136,8 @@ def main():
     app.run_polling()
 
 if __name__ == "__main__":
+    # Запускаем health-сервер в фоновом потоке
+    health_thread = threading.Thread(target=run_health_server, daemon=True)
+    health_thread.start()
+    # Запускаем основного бота
     main()
