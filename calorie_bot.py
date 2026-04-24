@@ -119,7 +119,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🥩 Белки: [г]\n"
         "🧈 Жиры: [г]\n"
         "🍚 Углеводы: [г]\n"
-        "💡 Совет: [один короткий совет]"
+        "💡 Совет: [два коротких совета]"
     )
     
     response_text = ask_mistral(prompt, photo_bytes)
